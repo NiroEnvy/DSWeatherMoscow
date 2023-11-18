@@ -1,0 +1,70 @@
+@using X.PagedList.Mvc.Core
+@model IPagedList<WeatherData>
+
+<h2>Weather Archives</h2>
+<form method="get" asp-controller="Weather" asp-action="ViewWeatherArchives">
+    <label for="year">Select Year:</label>
+    <select id="year" name="year">
+        <option value="">All Years</option>
+        @{for (var i = ViewBag.MaxYear; i >= ViewBag.MinYear; i--)
+          {
+              <option value="@i" selected="@(ViewBag.Year != null && i == ViewBag.Year)">@i</option>
+          }
+        }
+    </select>
+    <label for="month">Select Month:</label>
+    <select id="month" name="month">
+        <option value="">All Months</option>
+        @{for (var i = 1; i <= 12; i++)
+          {
+              <option value="@i" selected="@(ViewBag.Month != null && i == ViewBag.Month)">@DateTimeFormatInfo.CurrentInfo.GetMonthName(i)</option>
+          }
+        }
+    </select>
+    <button type="submit">Filter</button>
+</form>
+
+<table class="table">
+    <thead>
+    <tr>
+        <th>Date</th>
+        <th>Temperature</th>
+        <th>Air Humidity</th>
+        <th>Td</th>
+        <th>Atmospheric Pressure</th>
+        <th>AirDirection</th>
+        <th>AirSpeed</th>
+        <th>Cloudiness</th>
+        <th>H</th>
+        <th>VV</th>
+        <th>WeatherEvents</th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var data in Model)
+    {
+        <tr>
+            <td>@data.Date</td>
+            <td>@data.Temperature</td>
+            <td>@data.AirHumidity</td>
+            <td>@data.Td</td>
+            <td>@data.AtmPressure</td>
+            <td>@data.AirDirection</td>
+            <td>@data.AirSpeed</td>
+            <td>@data.Cloudiness</td>
+            <td>@data.H</td>
+            <td>@data.VV</td>
+            <td>@data.WeatherEvents</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+
+<div class="text-center">
+    @Html.PagedListPager(Model, page => Url.Action("ViewWeatherArchives", new {
+        page,
+        year = ViewBag.Year,
+        month = ViewBag.Month
+    }))
+</div>

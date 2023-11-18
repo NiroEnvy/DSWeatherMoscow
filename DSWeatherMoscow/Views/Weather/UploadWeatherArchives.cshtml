@@ -1,0 +1,9 @@
+<h2>Upload Weather Archives</h2>
+
+<form method="post" asp-controller="Weather" asp-action="UploadWeatherArchives" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="files">Select Excel Files:</label>
+        <input type="file" name="files" id="files" multiple required/>
+    </div>
+    <button type="submit" class="btn btn-primary" id="uploadButton">Upload</button>
+</form>

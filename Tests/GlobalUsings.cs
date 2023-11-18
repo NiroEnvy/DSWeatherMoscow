@@ -1,0 +1,12 @@
+global using Xunit;
+global using DSWeatherMoscow.Controllers;
+global using DSWeatherMoscow.DbContexts;
+global using DSWeatherMoscow.Interfaces;
+global using DSWeatherMoscow.Models;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Caching.Memory;
+global using Microsoft.Extensions.Logging;
+global using Moq;
+global using X.PagedList;

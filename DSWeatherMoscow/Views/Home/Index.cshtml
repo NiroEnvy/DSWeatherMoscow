@@ -1,0 +1,12 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <form asp-controller="Weather" asp-action="ViewWeatherArchives" method="post">
+        <button type="submit" class="btn btn-primary">Display Weather Data page</button>
+    </form>
+    <form asp-controller="Weather" asp-action="UploadWeatherArchives" method="get">
+        <button type="submit" class="btn btn-primary">Upload page</button>
+    </form>
+</div>
