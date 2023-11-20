@@ -121,7 +121,7 @@ public class WeatherController : Controller
 
                                 if (existingRecord != null)
                                 {
-                                    Helpers.CopyProperties(existingRecord, existingRecord);
+                                    Helpers.CopyProperties(weatherData, existingRecord);
                                     _context.WeatherData?.Update(existingRecord);
                                 }
                                 else
