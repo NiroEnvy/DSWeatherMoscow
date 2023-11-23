@@ -1,7 +1,7 @@
 using DSWeatherMoscow.DbContexts;
+using DSWeatherMoscow.Extensions;
 using DSWeatherMoscow.Interfaces;
 using DSWeatherMoscow.Models;
-using DSWeatherMoscow.Utils;
 
 namespace DSWeatherMoscow.Controllers;
 
@@ -83,75 +83,80 @@ public class WeatherController : Controller
         {
             foreach (var file in files.Where(file => file.Length > 0))
             {
-                try
+                using var stream = file.OpenReadStream();
+                var workbook = new XSSFWorkbook(stream);
+                foreach (var sheet in workbook)
                 {
-                    using var stream = file.OpenReadStream();
-                    var workbook = new XSSFWorkbook(stream);
-
-                    foreach (var sheet in workbook)
-                    {
-                        for (var rowIdx = 5; rowIdx <= sheet.LastRowNum; rowIdx++)
-                        {
-                            var row = sheet.GetRow(rowIdx);
-                            if (row == null) continue;
-
-                            try
-                            {
-                                var date = Convert.ToDateTime(
-                                    Helpers.GetStringCellValue(row.GetCell(0, MissingCellPolicy.RETURN_NULL_AND_BLANK)));
-                                var time = Convert.ToDateTime(
-                                    Helpers.GetStringCellValue(row.GetCell(1, MissingCellPolicy.RETURN_NULL_AND_BLANK)));
-                                var weatherData = new WeatherData {
-                                    Date = DateTime.SpecifyKind(
-                                        new DateTime(date.Year, date.Month, date.Day, time.Hour, time.Minute, time.Second),
-                                        DateTimeKind.Utc),
-                                    Temperature = Helpers.ParseCellAsDouble(row.GetCell(2, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    AirHumidity = Helpers.ParseCellAsDouble(row.GetCell(3, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    Td = Helpers.ParseCellAsDouble(row.GetCell(4, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    AtmPressure = Helpers.ParseCellAsDouble(row.GetCell(5, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    AirDirection = Helpers.GetStringCellValue(row.GetCell(6, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    AirSpeed = Helpers.ParseCellAsDouble(row.GetCell(7, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    Cloudiness = Helpers.ParseCellAsDouble(row.GetCell(8, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    H = Helpers.ParseCellAsDouble(row.GetCell(9, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    VV = Helpers.ParseCellAsDouble(row.GetCell(10, MissingCellPolicy.RETURN_NULL_AND_BLANK)),
-                                    WeatherEvents = Helpers.GetStringCellValue(row.GetCell(11, MissingCellPolicy.RETURN_NULL_AND_BLANK))
-                                };
-
-                                var existingRecord = _context.WeatherData?.FirstOrDefault(w => w.Date == weatherData.Date);
-
-                                if (existingRecord != null)
-                                {
-                                    Helpers.CopyProperties(weatherData, existingRecord);
-                                    _context.WeatherData?.Update(existingRecord);
-                                }
-                                else
-                                {
-                                    _context.WeatherData?.Add(weatherData);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Error while parsing Excel file: {FileName} with row number {Id}: {Ex}", file.FileName,
-                                    rowIdx, ex);
-                            }
-                        }
-                    }
-
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error while parsing Excel file {FileName}: {Ex}", file.FileName, ex);
+                    ProcessRow(sheet);
                 }
             }
             _context.SaveChanges(); // Commit changes for all rows in the transaction
             _idbWrapper.Commit(); // Commit the transaction
+            _memoryCache.Remove(CacheKeyMin);
+            _memoryCache.Remove(CacheKeyMax);
         }
         catch (Exception e)
         {
             _idbWrapper.Rollback(); // Rollback the transaction in case of an error
-            _logger.LogError(e, "Error with transaction: {Ex}", e);
+            _logger.LogError(e, "Error with new file: {Ex}", e);
         }
-
         return RedirectToAction(nameof(ViewWeatherArchives));
+    }
+
+    private void ProcessRow(ISheet sheet)
+    {
+        for (var rowIdx = 5; rowIdx <= sheet.LastRowNum; rowIdx++)
+        {
+            var row = sheet.GetRow(rowIdx);
+            if (row == null) continue;
+
+            var weatherData = ParseRowToWeatherData(row);
+
+            var existingRecord = _context.WeatherData?.FirstOrDefault(w => w.Date == weatherData.Date);
+
+            if (existingRecord != null)
+            {
+                UpdateExistingRecord(existingRecord, weatherData);
+                _context.WeatherData?.Update(existingRecord);
+            }
+            else
+            {
+                _context.WeatherData?.Add(weatherData);
+            }
+        }
+    }
+
+    private static WeatherData ParseRowToWeatherData(IRow row)
+    {
+        var date = Convert.ToDateTime(row.GetCell(0, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsString());
+        var time = Convert.ToDateTime(row.GetCell(1, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsString());
+        var weatherData = new WeatherData {
+            Date = DateTime.SpecifyKind(
+                new DateTime(date.Year, date.Month, date.Day, time.Hour, time.Minute, time.Second),
+                DateTimeKind.Utc),
+            Temperature = row.GetCell(2, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            AirHumidity = row.GetCell(3, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            Td = row.GetCell(4, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            AtmPressure = row.GetCell(5, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            AirDirection = row.GetCell(6, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsString(),
+            AirSpeed = row.GetCell(7, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            Cloudiness = row.GetCell(8, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            H = row.GetCell(9, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            VV = row.GetCell(10, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsDouble(),
+            WeatherEvents = row.GetCell(11, MissingCellPolicy.RETURN_NULL_AND_BLANK).ParseCellAsString()
+        };
+        return weatherData;
+    }
+
+    private static void UpdateExistingRecord(WeatherData existingRecord, WeatherData newData)
+    {
+        var properties = typeof(WeatherData).GetProperties()
+            .Where(p => p is {CanRead: true, CanWrite: true} && p.Name != nameof(WeatherData.Id));
+
+        foreach (var property in properties)
+        {
+            var newValue = property.GetValue(newData);
+            property.SetValue(existingRecord, newValue);
+        }
     }
 }
